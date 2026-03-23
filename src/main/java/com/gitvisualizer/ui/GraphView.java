@@ -322,25 +322,13 @@ public class GraphView extends BorderPane {
         nodeViews.clear();
         edgeViews.clear();
         childrenByNode.clear();
-        selectedNode = null;
         hoverNode = null;
 
-        detailsContent.getChildren().clear();
-        VBox empty = new VBox(8);
-        empty.setAlignment(Pos.TOP_LEFT);
-        Label hintTitle = new Label("Select a commit");
-        hintTitle.setFont(Font.font("System", FontWeight.SEMI_BOLD, 14));
-        hintTitle.setTextFill(Color.web(TEXT_PRIMARY));
-        Label hintBody = new Label("Click a commit card to view details and parent/child links.");
-        hintBody.setWrapText(true);
-        hintBody.setTextFill(Color.web(TEXT_SECONDARY));
-        empty.getChildren().addAll(hintTitle, hintBody);
-        detailsContent.getChildren().add(empty);
-
         if (nodes == null || nodes.isEmpty()) {
-            Label msg = new Label("No commits found.");
-            msg.setTextFill(Color.web(TEXT_SECONDARY));
-            detailsContent.getChildren().add(msg);
+            graphScroll.setHvalue(0);
+            graphScroll.setVvalue(0);
+            applyHighlights(null);
+            commitTooltip.hide();
             return;
         }
 
@@ -352,8 +340,15 @@ public class GraphView extends BorderPane {
         int laneCount = Math.max(1, layout.laneCount);
 
         // Layout positions. Vertical timeline: top -> bottom.
-        double maxX = LEFT_PADDING + (laneCount - 1) * LANE_GAP_X + (CARD_WIDTH + 70);
-        baseWidth = Math.max(900, maxX);
+        double nodeContentWidth = LEFT_PADDING + (laneCount - 1) * LANE_GAP_X + (CARD_WIDTH + 70);
+        double viewportW = graphScroll.getViewportBounds().getWidth();
+        if (viewportW <= 0) viewportW = graphScroll.getWidth();
+        // Render resets scale to 1.0, so compute centering in logical pixels.
+        double logicalViewportW = viewportW;
+
+        // Center nodes horizontally when content is narrower than viewport.
+        baseWidth = Math.max(900, Math.max(nodeContentWidth, logicalViewportW));
+        double originX = LEFT_PADDING + ((baseWidth - nodeContentWidth) / 2.0);
         baseHeight = TOP_PADDING + ordered.size() * V_STEP + BOTTOM_PADDING;
 
         // Reset zoom.
@@ -369,8 +364,7 @@ public class GraphView extends BorderPane {
         for (GraphNode node : ordered) {
             int lane = node.lane;
             int row = node.row;
-
-            double x = LEFT_PADDING + lane * LANE_GAP_X;
+            double x = originX + lane * LANE_GAP_X;
             double y = TOP_PADDING + row * V_STEP;
 
             node.x = x;
@@ -446,109 +440,34 @@ public class GraphView extends BorderPane {
         return set;
     }
 
-    private void selectNode(GraphNode node) {
-        selectedNode = node;
-        hoverNode = null;
-        updateDetails(node);
-        applyHighlights(node);
-    }
-
-    private void updateDetails(GraphNode node) {
-        detailsContent.getChildren().clear();
-        if (node == null) return;
+    private void showTooltip(GraphNode node, double screenX, double screenY) {
+        if (node == null || node.commit == null) return;
 
         CommitNode c = node.commit;
 
-        Label hash = new Label(shortHash(c.hash));
-        hash.setTextFill(Color.web(TEXT_PRIMARY));
-        hash.setFont(Font.font("Monospaced", FontWeight.BOLD, 14));
-        hash.setStyle("-fx-background-color: rgba(255,255,255,0.04); -fx-padding: 6 10; -fx-background-radius: 8; -fx-border-color: " + BORDER + "; -fx-border-radius: 8;");
+        tooltipHash.setText(shortHash(c.hash));
+        tooltipAuthor.setText("Author: " + (c.author == null ? "Unknown" : c.author));
+        tooltipDate.setText("Date: " + formatDateTime(c.timestamp));
+        tooltipMessage.setText(prettyMessage(c.message));
 
-        Label author = new Label("Author: " + (c.author == null ? "Unknown" : c.author));
-        author.setTextFill(Color.web(TEXT_SECONDARY));
+        tooltipBox.setOpacity(0);
+        if (graphScroll.getScene() == null || graphScroll.getScene().getWindow() == null) return;
 
-        Label date = new Label("Date: " + formatDateTime(c.timestamp));
-        date.setTextFill(Color.web(TEXT_SECONDARY));
+        commitTooltip.show(graphScroll.getScene().getWindow(), screenX + 12, screenY + 12);
 
-        Text message = new Text(prettyMessage(c.message));
-        message.setFill(Color.web(TEXT_PRIMARY));
-        message.wrappingWidthProperty().bind(detailsScroll.widthProperty().subtract(30));
-        message.setFont(Font.font("System", 13));
-
-        Label msgLabel = new Label("Message");
-        msgLabel.setTextFill(Color.web(TEXT_SECONDARY));
-        msgLabel.setFont(Font.font("System", FontWeight.SEMI_BOLD, 13));
-
-        detailsContent.getChildren().addAll(hash, author, date, new Separator(), msgLabel, message, new Separator());
-
-        FlowPane parentsTags = new FlowPane();
-        parentsTags.setHgap(6);
-        parentsTags.setVgap(6);
-        parentsTags.setAlignment(Pos.TOP_LEFT);
-
-        FlowPane childrenTags = new FlowPane();
-        childrenTags.setHgap(6);
-        childrenTags.setVgap(6);
-        childrenTags.setAlignment(Pos.TOP_LEFT);
-
-        VBox parentsBox = new VBox(8, tagHeader("Parents"), parentsTags);
-        VBox childrenBox = new VBox(8, tagHeader("Children"), childrenTags);
-
-        // Parents: distinct + clickable.
-        Set<GraphNode> parents = distinctParents(node);
-        if (parents.isEmpty()) {
-            parentsTags.getChildren().add(tagStatic("(none)"));
-        } else {
-            List<GraphNode> list = new ArrayList<>(parents);
-            list.sort(Comparator.comparing((GraphNode n) -> commitTime(n.commit)));
-            for (GraphNode p : list) {
-                parentsTags.getChildren().add(tagClickable(shortHash(p.commit.hash), () -> selectNode(p)));
-            }
-        }
-
-        // Children: derived from parent relationships.
-        Set<GraphNode> children = childrenByNode.getOrDefault(node, Set.of());
-        if (children == null || children.isEmpty()) {
-            childrenTags.getChildren().add(tagStatic("(none)"));
-        } else {
-            List<GraphNode> list = new ArrayList<>(children);
-            list.sort(Comparator.comparing((GraphNode n) -> commitTime(n.commit)));
-            for (GraphNode ch : list) {
-                childrenTags.getChildren().add(tagClickable(shortHash(ch.commit.hash), () -> selectNode(ch)));
-            }
-        }
-
-        detailsContent.getChildren().addAll(parentsBox, childrenBox);
-
-        // Transition.
-        detailsContent.setOpacity(0);
-        FadeTransition ft = new FadeTransition(Duration.millis(180), detailsContent);
+        FadeTransition ft = new FadeTransition(Duration.millis(140), tooltipBox);
         ft.setFromValue(0);
         ft.setToValue(1);
         ft.play();
     }
 
-    private Label tagHeader(String text) {
-        Label l = new Label(text);
-        l.setTextFill(Color.web(TEXT_SECONDARY));
-        l.setFont(Font.font("System", FontWeight.SEMI_BOLD, 13));
-        return l;
-    }
-
-    private Label tagStatic(String text) {
-        Label l = new Label(text);
-        l.setTextFill(Color.web(TEXT_SECONDARY));
-        l.setStyle("-fx-background-color: rgba(255,255,255,0.03); -fx-padding: 4 8; -fx-background-radius: 999; -fx-border-color: " + BORDER + "; -fx-border-radius: 999;");
-        return l;
-    }
-
-    private Label tagClickable(String text, Runnable onClick) {
-        Label l = new Label(text);
-        l.setTextFill(Color.web(TEXT_PRIMARY));
-        l.setCursor(Cursor.HAND);
-        l.setStyle("-fx-background-color: rgba(255,255,255,0.04); -fx-padding: 4 8; -fx-background-radius: 999; -fx-border-color: " + BORDER + "; -fx-border-radius: 999;");
-        l.setOnMouseClicked(e -> onClick.run());
-        return l;
+    private void hideTooltip() {
+        if (!commitTooltip.isShowing()) return;
+        FadeTransition ft = new FadeTransition(Duration.millis(120), tooltipBox);
+        ft.setFromValue(tooltipBox.getOpacity());
+        ft.setToValue(0);
+        ft.setOnFinished(e -> commitTooltip.hide());
+        ft.play();
     }
 
     private void applyHighlights(GraphNode focus) {
@@ -724,17 +643,15 @@ public class GraphView extends BorderPane {
                 hoverNode = node;
                 applyHighlights(hoverNode);
                 hoverUp.playFromStart();
+                showTooltip(node, e.getScreenX(), e.getScreenY());
                 e.consume();
             });
             root.setOnMouseExited(e -> {
                 hoverNode = null;
-                applyHighlights(selectedNode);
+                applyHighlights(null);
+                hideTooltip();
                 hoverDown.playFromStart();
                 e.consume();
-            });
-            root.setOnMouseClicked(e -> {
-                e.consume();
-                selectNode(node);
             });
         }
 
