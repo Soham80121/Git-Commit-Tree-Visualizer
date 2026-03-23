@@ -36,6 +36,7 @@ public class GitService {
 
                 list.add(node);
             }
+            git.close();
 
         } catch (Exception e) {
             e.printStackTrace();
