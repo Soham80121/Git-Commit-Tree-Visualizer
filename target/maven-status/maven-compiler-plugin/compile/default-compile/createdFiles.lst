@@ -1,6 +1,14 @@
+com\gitvisualizer\ui\GraphView$PointInScene.class
+com\gitvisualizer\ui\GraphView.class
+com\gitvisualizer\service\GraphBuilder.class
+com\gitvisualizer\layout\GitGraphLayout$LayoutResult.class
+com\gitvisualizer\ui\GraphView$EdgeView.class
+com\gitvisualizer\layout\GitGraphLayout$NewestFirstComparator.class
+com\gitvisualizer\ui\GraphView$NodeState.class
 com\gitvisualizer\model\CommitNode.class
+com\gitvisualizer\layout\GitGraphLayout.class
+com\gitvisualizer\ui\GraphView$CommitCardView.class
+com\gitvisualizer\MainApp.class
 com\gitvisualizer\model\GraphNode.class
 com\gitvisualizer\service\GitService.class
-com\gitvisualizer\ui\GraphView.class
-com\gitvisualizer\MainApp.class
-com\gitvisualizer\service\GraphBuilder.class
+com\gitvisualizer\layout\GitGraphLayout$LaneState.class

@@ -26,7 +26,7 @@ public class MainApp extends Application {
         GraphView view = new GraphView();
         view.render(graph);
 
-        Scene scene = new Scene(view, 800, 600);
+        Scene scene = new Scene(view, 1200, 720);
 
         stage.setTitle("Git Commit Visualizer");
         stage.setScene(scene);
