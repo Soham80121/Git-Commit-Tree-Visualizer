@@ -15,7 +15,7 @@ public class MainApp extends Application {
     @Override
     public void start(Stage stage) {
 
-        String repoPath = "YOUR_LOCAL_REPO_PATH"; // change this
+        String repoPath = "D:/Hackathon/Git Commit Tree Visualizer/Git-Commit-Tree-Visualizer"; // change this
 
         GitService gitService = new GitService();
         List<CommitNode> commits = gitService.getAllCommits(repoPath);

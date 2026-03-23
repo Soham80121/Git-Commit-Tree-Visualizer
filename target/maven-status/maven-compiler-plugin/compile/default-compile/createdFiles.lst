@@ -1,0 +1,6 @@
+com\gitvisualizer\model\CommitNode.class
+com\gitvisualizer\model\GraphNode.class
+com\gitvisualizer\service\GitService.class
+com\gitvisualizer\ui\GraphView.class
+com\gitvisualizer\MainApp.class
+com\gitvisualizer\service\GraphBuilder.class
